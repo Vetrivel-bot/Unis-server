@@ -1,0 +1,31 @@
+{
+  "name": "unis",
+  "version": "1.0.0",
+  "description": "��#\u0000 \u0000U\u0000n\u0000i\u0000s\u0000-\u0000s\u0000e\u0000r\u0000v\u0000e\u0000r\u0000\r\u0000 \u0000",
+  "homepage": "https://github.com/Vetrivel-bot/Unis-server#readme",
+  "bugs": {
+    "url": "https://github.com/Vetrivel-bot/Unis-server/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vetrivel-bot/Unis-server.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "body-parser": "^2.2.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "express": "^5.1.0",
+    "mongoose": "^8.18.2",
+    "nodemon": "^3.1.10"
+  }
+}
