@@ -1,0 +1,9 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  redis:
+    image: 'redis:latest'
+    container_name: my-redis-compose
+    ports:
+      - '6379:6379'

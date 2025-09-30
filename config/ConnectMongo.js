@@ -2,7 +2,7 @@
 const mongoose = require("mongoose");
 require("dotenv").config();
 
-const connectDataBase = async () => {
+const connectMongo = async () => {
   try {
     const uri =
       process.env.MONGO_DB?.trim() || "mongodb://127.0.0.1:27017/mydb";
@@ -71,4 +71,4 @@ const connectDataBase = async () => {
   }
 };
 
-module.exports = connectDataBase;
+module.exports = connectMongo;
