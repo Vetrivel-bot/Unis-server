@@ -35,7 +35,7 @@ const port = process.env.PORT || 3000;
 
     // register routes
     app.use("/api", require("./routes/index"));
-    server.listen(port, "127.0.0.1", () => {
+    server.listen(port, "0.0.0.0", () => {
       console.log(`☑️   Unis server running on http://127.0.0.1:${port}`);
       console.log("=".repeat(process.stdout.columns || 80));
     });

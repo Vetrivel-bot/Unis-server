@@ -1,16 +1,29 @@
-const { User } = require("../model/userModel");
+const userModel = require("../model/userModel");
 const { generateAndStoreOTP } = require("../services/otpService");
 exports.otpGeneration = async (req, res) => {
   try {
     // 1. Get the required fields from the request body
     const { phone, deviceName, deviceId, lastIP } = req.body;
-
+    // Define the regular expression for an Indian mobile number
+    const indianMobileRegex = /^(\+91|91|0)?[ -]?[6-9]\d{9}$/;
     // 2. Check if any of the required fields are missing
     if (!phone || !deviceName || !deviceId || !lastIP) {
       // If a field is missing, send a 400 Bad Request response
       return res.status(400).json({
         message:
           "Missing required fields. Please provide phone, deviceName, deviceId, and lastIP.",
+      });
+    }
+    // The inline 'if' condition
+    if (!indianMobileRegex.test(phone)) {
+      return res.status(400).json({
+        message: "A valid 10-digit Indian mobile number is required.",
+      });
+    }
+    const exist = await userModel.findOne({ phone: phone });
+    if (!exist) {
+      return res.status(400).json({
+        message: "Register for the credentials to login",
       });
     }
     const deviceDetails = {

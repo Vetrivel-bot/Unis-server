@@ -1,4 +1,3 @@
-// middlewares/authMiddleware.js
 const jwt = require("jsonwebtoken");
 const RefreshToken = require("../model/RefreshTokenModel");
 const RefreshTokenModel = require("../model/RefreshTokenModel"); // preserved since you referenced both
@@ -20,6 +19,11 @@ if (!ACCESS_SECRET || !REFRESH_SECRET) {
  * NOTE: No rememberMe / no refresh rotation (as requested).
  */
 exports.Auth_MiddleWare = (options = {}) => {
+  // threshold for rotating refresh token: 7 days in ms
+  const REFRESH_ROTATE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+  // new refresh token lifetime (used when rotating) - choose 30 days
+  const NEW_REFRESH_EXPIRES_DAYS = 30;
+
   return async function authInner(...args) {
     // Socket.IO mode: (socket, next)
     if (args && args[0] && args[0].handshake) {
@@ -107,7 +111,7 @@ exports.Auth_MiddleWare = (options = {}) => {
           }
         }
 
-        // 2) Refresh flow (no rotation)
+        // 2) Refresh flow (conditional refresh rotation if <7 days left)
         if (!refreshToken) {
           return next(
             new Error("Refresh token required (header: x-refresh-token)")
@@ -146,10 +150,10 @@ exports.Auth_MiddleWare = (options = {}) => {
           await stored.deleteOne().catch(() => {});
           return next(new Error("Session invalidated (device name mismatch)"));
         }
-        if (ip && stored.device?.lastIP && stored.device.lastIP !== ip) {
-          await stored.deleteOne().catch(() => {});
-          return next(new Error("Session invalidated (ip mismatch)"));
-        }
+        // if (ip && stored.device?.lastIP && stored.device.lastIP !== ip) {
+        //   await stored.deleteOne().catch(() => {});
+        //   return next(new Error("Session invalidated (ip mismatch)"));
+        // }
 
         // expired?
         if (
@@ -160,7 +164,7 @@ exports.Auth_MiddleWare = (options = {}) => {
           return next(new Error("Refresh token expired"));
         }
 
-        // update lastUsed & lastIP (no refresh token rotation)
+        // update lastUsed & lastIP (no refresh token rotation by default)
         await RefreshToken.findByIdAndUpdate(stored._id, {
           "device.lastIP": ip || stored.device?.lastIP,
           lastUsed: new Date(),
@@ -177,15 +181,95 @@ exports.Auth_MiddleWare = (options = {}) => {
           { expiresIn: "15m" }
         );
 
+        // determine if we should rotate the refresh token (remaining lifetime <= 7 days)
+        let rotatedRefreshToken = null;
+        try {
+          if (decodedRefresh.exp) {
+            const remainingMs = decodedRefresh.exp * 1000 - Date.now();
+            if (remainingMs <= REFRESH_ROTATE_THRESHOLD_MS) {
+              // rotate - create new refresh token and update DB
+              rotatedRefreshToken = jwt.sign(
+                {
+                  _id: tokenUserId,
+                  phone: decodedRefresh.phone,
+                  role: decodedRefresh.role,
+                },
+                REFRESH_SECRET,
+                { expiresIn: `${NEW_REFRESH_EXPIRES_DAYS}d` }
+              );
+
+              const newExpiryDate = new Date(
+                Date.now() + NEW_REFRESH_EXPIRES_DAYS * 24 * 60 * 60 * 1000
+              );
+
+              // update stored token and expiry in DB
+              await RefreshToken.findByIdAndUpdate(
+                stored._id,
+                {
+                  token: rotatedRefreshToken,
+                  expiresAt: newExpiryDate,
+                  "device.lastIP": ip || stored.device?.lastIP,
+                  lastUsed: new Date(),
+                },
+                { new: true }
+              ).catch(() => {
+                // If update fails, we'll continue without rotation
+                rotatedRefreshToken = null;
+              });
+            }
+          } else if (stored.expiresAt) {
+            // fallback: use stored.expiresAt if token exp not present
+            const remainingMs =
+              new Date(stored.expiresAt).getTime() - Date.now();
+            if (remainingMs <= REFRESH_ROTATE_THRESHOLD_MS) {
+              rotatedRefreshToken = jwt.sign(
+                {
+                  _id: tokenUserId,
+                  phone: decodedRefresh.phone,
+                  role: decodedRefresh.role,
+                },
+                REFRESH_SECRET,
+                { expiresIn: `${NEW_REFRESH_EXPIRES_DAYS}d` }
+              );
+
+              const newExpiryDate = new Date(
+                Date.now() + NEW_REFRESH_EXPIRES_DAYS * 24 * 60 * 60 * 1000
+              );
+
+              await RefreshToken.findByIdAndUpdate(
+                stored._id,
+                {
+                  token: rotatedRefreshToken,
+                  expiresAt: newExpiryDate,
+                  "device.lastIP": ip || stored.device?.lastIP,
+                  lastUsed: new Date(),
+                },
+                { new: true }
+              ).catch(() => {
+                rotatedRefreshToken = null;
+              });
+            }
+          }
+        } catch (e) {
+          // non-fatal - continue without rotation if anything goes wrong
+          rotatedRefreshToken = null;
+        }
+
         // Emit tokens on socket so client can pick them up
         try {
-          socket.emit("tokens", { accessToken: newAccessToken });
+          // include refreshToken only if rotated
+          const emitPayload = rotatedRefreshToken
+            ? { accessToken: newAccessToken, refreshToken: rotatedRefreshToken }
+            : { accessToken: newAccessToken };
+          socket.emit("tokens", emitPayload);
         } catch (e) {
           // non-fatal
         }
 
         // attach tokens & user to socket
-        socket.tokens = { accessToken: newAccessToken };
+        socket.tokens = rotatedRefreshToken
+          ? { accessToken: newAccessToken, refreshToken: rotatedRefreshToken }
+          : { accessToken: newAccessToken };
         socket.user = {
           _id: tokenUserId,
           phone: decodedRefresh.phone,
@@ -270,13 +354,11 @@ exports.Auth_MiddleWare = (options = {}) => {
         }
       }
 
-      // 2) Refresh flow (no rotation)
+      // 2) Refresh flow (conditional refresh rotation if <7 days left)
       if (!refreshToken) {
-        return res
-          .status(401)
-          .json({
-            message: "Refresh token required (header: x-refresh-token)",
-          });
+        return res.status(401).json({
+          message: "Refresh token required (header: x-refresh-token)",
+        });
       }
 
       let decodedRefresh;
@@ -336,7 +418,7 @@ exports.Auth_MiddleWare = (options = {}) => {
         return res.status(401).json({ message: "Refresh token expired" });
       }
 
-      // update lastUsed & lastIP (no refresh token rotation)
+      // update lastUsed & lastIP (no refresh token rotation by default)
       await RefreshToken.findByIdAndUpdate(stored._id, {
         "device.lastIP": ip || stored.device?.lastIP,
         lastUsed: new Date(),
@@ -353,9 +435,90 @@ exports.Auth_MiddleWare = (options = {}) => {
         { expiresIn: "15m" }
       );
 
-      // return access token in header, do NOT rotate refresh token
+      // determine if we should rotate the refresh token (remaining lifetime <= 7 days)
+      let rotatedRefreshToken = null;
+      try {
+        if (decodedRefresh.exp) {
+          const remainingMs = decodedRefresh.exp * 1000 - Date.now();
+          if (remainingMs <= REFRESH_ROTATE_THRESHOLD_MS) {
+            // rotate - create new refresh token and update DB
+            rotatedRefreshToken = jwt.sign(
+              {
+                _id: tokenUserId,
+                phone: decodedRefresh.phone,
+                role: decodedRefresh.role,
+              },
+              REFRESH_SECRET,
+              { expiresIn: `${NEW_REFRESH_EXPIRES_DAYS}d` }
+            );
+
+            const newExpiryDate = new Date(
+              Date.now() + NEW_REFRESH_EXPIRES_DAYS * 24 * 60 * 60 * 1000
+            );
+
+            // update stored token and expiry in DB
+            await RefreshToken.findByIdAndUpdate(
+              stored._id,
+              {
+                token: rotatedRefreshToken,
+                expiresAt: newExpiryDate,
+                "device.lastIP": ip || stored.device?.lastIP,
+                lastUsed: new Date(),
+              },
+              { new: true }
+            ).catch(() => {
+              rotatedRefreshToken = null;
+            });
+          }
+        } else if (stored.expiresAt) {
+          // fallback: use stored.expiresAt if token exp not present
+          const remainingMs = new Date(stored.expiresAt).getTime() - Date.now();
+          if (remainingMs <= REFRESH_ROTATE_THRESHOLD_MS) {
+            rotatedRefreshToken = jwt.sign(
+              {
+                _id: tokenUserId,
+                phone: decodedRefresh.phone,
+                role: decodedRefresh.role,
+              },
+              REFRESH_SECRET,
+              { expiresIn: `${NEW_REFRESH_EXPIRES_DAYS}d` }
+            );
+
+            const newExpiryDate = new Date(
+              Date.now() + NEW_REFRESH_EXPIRES_DAYS * 24 * 60 * 60 * 1000
+            );
+
+            await RefreshToken.findByIdAndUpdate(
+              stored._id,
+              {
+                token: rotatedRefreshToken,
+                expiresAt: newExpiryDate,
+                "device.lastIP": ip || stored.device?.lastIP,
+                lastUsed: new Date(),
+              },
+              { new: true }
+            ).catch(() => {
+              rotatedRefreshToken = null;
+            });
+          }
+        }
+      } catch (e) {
+        // non-fatal - continue without rotation if anything goes wrong
+        rotatedRefreshToken = null;
+      }
+
+      // return access token in header, include refresh token header if rotated
       res.setHeader("x-access-token", newAccessToken);
-      res.locals.tokens = { accessToken: newAccessToken };
+      if (rotatedRefreshToken) {
+        res.setHeader("x-refresh-token", rotatedRefreshToken);
+        res.locals.tokens = {
+          accessToken: newAccessToken,
+          refreshToken: rotatedRefreshToken,
+        };
+      } else {
+        res.locals.tokens = { accessToken: newAccessToken };
+      }
+
       req.user = {
         _id: tokenUserId,
         phone: decodedRefresh.phone,
