@@ -1,9 +1,35 @@
 # docker-compose.yml
-version: '3.8'
-
 services:
-  redis:
-    image: 'redis:latest'
-    container_name: my-redis-compose
+  mongo:
+    image: mongo:latest
+    container_name: unis-mongo
     ports:
-      - '6379:6379'
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: Unis
+    volumes:
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    container_name: unis-postgres
+    environment:
+      POSTGRES_USER: v3
+      POSTGRES_PASSWORD: 12345678
+      POSTGRES_DB: Unis
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:latest
+    container_name: unis-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
