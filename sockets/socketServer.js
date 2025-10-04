@@ -15,9 +15,27 @@ async function initSocketServer(server, { pubClient, subClient }) {
   const eventFiles = fs.readdirSync(eventsDir).filter((f) => f.endsWith(".js"));
 
   io.on("connection", (socket) => {
-    const userId = socket.user?._id || socket.userId;
+    // The user object is attached by the Auth_MiddleWare
+    const user = socket.user;
+    if (!user) {
+      // This shouldn't happen if the middleware is working, but it's a good safeguard.
+      console.log(
+        `[socket] Connection from ${socket.id} rejected: No user attached.`
+      );
+      socket.disconnect();
+      return;
+    }
+
+    const userId = user._id;
     socket.join(`user:${userId}`);
-    socket.emit("connected", { socketId: socket.id, userId });
+
+    // --- CHANGE IS HERE ---
+    // Send the full user object to the client upon connection.
+    socket.emit("connected", {
+      socketId: socket.id,
+      user: user, // user object contains _id, phone, and role
+    });
+    console.log(`[socket] User connected: ${userId} (${socket.id})`);
 
     // Register every event handler module automatically
     for (const file of eventFiles) {
@@ -29,7 +47,9 @@ async function initSocketServer(server, { pubClient, subClient }) {
     }
 
     socket.on("disconnect", (reason) => {
-      console.log(`socket ${socket.id} disconnected, reason=${reason}`);
+      console.log(
+        `[socket] User disconnected: ${userId} (${socket.id}), reason=${reason}`
+      );
     });
   });
 
