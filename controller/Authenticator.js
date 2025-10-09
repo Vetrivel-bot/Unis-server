@@ -18,7 +18,7 @@ exports.Authenticator = async (req, res) => {
     // If a new public key is provided and it's different from stored key -> update
     if (incomingKey && incomingKey !== user.publicKey) {
       // 1) update current user's publicKey
-      updatedUser = await User.findByIdAndUpdate(
+      updatedUser = await User.findAndUpdate(
         user._id,
         { publicKey: incomingKey },
         { new: true, useFindAndModify: false }
