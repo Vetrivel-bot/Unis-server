@@ -8,9 +8,7 @@ const User = require("../model/userModel");
 async function getAllowedContacts(userIdOrPhone) {
   try {
     // Find user by either ID or phone
-    const user = await User.findOne({
-      $or: [{ _id: userIdOrPhone }, { phone: userIdOrPhone }],
-    }).select("allowedContacts");
+    const user = await User.findOne({ _id: userIdOrPhone }).select("allowedContacts");
 
     if (!user) {
       throw new Error("User not found");
