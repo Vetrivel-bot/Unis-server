@@ -1,6 +1,6 @@
 // put near top of file
-const User = require("../models/User"); // adjust path if needed
-const { getAllowedContacts } = require("../utilit/getAllowedContacts");
+const User = require("../models/userModel"); // adjust path if needed
+const { getAllowedContacts } = require("../utils/getAllowedContacts");
 
 exports.Authenticator = async (req, res) => {
   try {
@@ -11,7 +11,8 @@ exports.Authenticator = async (req, res) => {
         .json({ message: "User ID or phone number is required" });
     }
 
-    const incomingKey = req.body && req.body.publicKey && String(req.body.publicKey).trim();
+    const incomingKey =
+      req.body && req.body.publicKey && String(req.body.publicKey).trim();
 
     let updatedUser = user;
 
@@ -26,7 +27,9 @@ exports.Authenticator = async (req, res) => {
 
       // Safety: if user not found for some reason, throw
       if (!updatedUser) {
-        return res.status(404).json({ message: "User not found while updating key" });
+        return res
+          .status(404)
+          .json({ message: "User not found while updating key" });
       }
 
       // 2) update peers' allowedContacts entries where contactId equals this user's id
@@ -45,7 +48,10 @@ exports.Authenticator = async (req, res) => {
     const allowedContacts = await getAllowedContacts(user._id);
 
     // normalize updatedUser to plain object if it's a mongoose doc
-    const userObj = (updatedUser && updatedUser.toObject) ? updatedUser.toObject() : updatedUser;
+    const userObj =
+      updatedUser && updatedUser.toObject
+        ? updatedUser.toObject()
+        : updatedUser;
 
     req.user = { ...userObj, allowedContacts };
 
@@ -58,11 +64,10 @@ exports.Authenticator = async (req, res) => {
   }
 };
 
-
 /*
 Note:
 -the publicKey field in UserSchema is required, so we assume it's always present.
 - we only
 change the public key only if the request contains a different key than the one stored or if the stored key is missing.
 it will do the above one obly if it has { "publicKey": "BASE64_OR_HEX_NEW_KEY_HERE" } in  the request body. 
-*/ 
+*/

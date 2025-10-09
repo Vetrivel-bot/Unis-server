@@ -1,4 +1,4 @@
-const User = require("../model/userModel");
+const User = require("../models/userModel");
 
 /**
  * Get all allowed contacts of a user

@@ -1,7 +1,7 @@
 // services/authService.js
 const jwt = require("jsonwebtoken");
-const userModel = require("../model/userModel");
-const RefreshToken = require("../model/RefreshTokenModel");
+const userModel = require("../models/userModel");
+const RefreshToken = require("../models/RefreshTokenModel");
 
 const ACCESS_SECRET = process.env.ACCESS_SECRET;
 const REFRESH_SECRET = process.env.REFRESH_SECRET;
