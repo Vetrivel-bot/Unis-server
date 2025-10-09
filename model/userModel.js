@@ -46,7 +46,7 @@ const UserSchema = new mongoose.Schema({
       alias: { type: String }, // optional nickname
 
       // ✅ Add chat keys (for startup verification)
-      ephemeralPublicKey: { type: String, required: true },
+      PublicKey: { type: String, required: true },
 
       // Optional metadata
       lastVerifiedAt: { type: Date, default: Date.now },
