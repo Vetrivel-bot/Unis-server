@@ -2,13 +2,13 @@ const { getAllowedContacts } = require("../utilit/getAllowedContacts");
 
 
 exports.Authenticator = async (req, res) => {
-  const { userIdOrPhone } = req.body;
+  const user=req.user 
 
   if (!userIdOrPhone) {
     return res.status(400).json({ message: "User ID or phone number is required" });
   }
   try {
-    const allowedContacts = await getAllowedContacts(userIdOrPhone);
+    const allowedContacts = await getAllowedContacts(user._id);
     req.user = { id: userIdOrPhone, allowedContacts };
     if (!allowedContacts.length) {
       return res.status(403).json({ message: "No allowed contacts found" });
