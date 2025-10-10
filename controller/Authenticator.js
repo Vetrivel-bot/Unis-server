@@ -85,7 +85,7 @@ exports.Authenticator = async (req, res) => {
     // Remove the original 'allowedContacts' property before sending the response
     delete userObj.allowedContacts;
 
-    req.user = { ...userObj, Contacts: finalAllowedContacts };
+    req.user = { ...userObj, contacts: finalAllowedContacts };
 
     return res
       .status(200)
