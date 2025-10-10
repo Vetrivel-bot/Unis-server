@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
-const RefreshToken = require("../model/RefreshTokenModel");
-const RefreshTokenModel = require("../model/RefreshTokenModel"); // preserved since you referenced both
+const RefreshToken = require("../models/RefreshTokenModel");
+const RefreshTokenModel = require("../models/RefreshTokenModel"); // preserved since you referenced both
 
 const ACCESS_SECRET = process.env.ACCESS_SECRET;
 const REFRESH_SECRET = process.env.REFRESH_SECRET;

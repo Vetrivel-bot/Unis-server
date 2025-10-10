@@ -1,8 +1,8 @@
 // controllers/authController.js
-const { User } = require("../model/userModel");
+const { User } = require("../models/userModel");
 const { verifyOTP } = require("../services/otpService");
 const { createSessionTokens } = require("../services/authService");
-const RefreshTokenModel = require("../model/RefreshTokenModel");
+const RefreshTokenModel = require("../models/RefreshTokenModel");
 
 exports.otpVerification = async (req, res) => {
   try {

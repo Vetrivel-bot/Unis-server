@@ -1,4 +1,4 @@
-const userModel = require("../model/userModel");
+const userModel = require("../models/userModel");
 const { generateAndStoreOTP } = require("../services/otpService");
 exports.otpGeneration = async (req, res) => {
   try {
