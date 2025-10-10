@@ -6,9 +6,9 @@ const express = require("express");
 const router = express.Router();
 
 router.get("/", (req, res) => res.json({ ok: true, service: "Unis" }));
-router.post("/auth", Auth_MiddleWare(), Authenticator);
 
 router.use("/login", require("./authRoutes"));
 router.use("/messages", require("./messages"));
+router.post("/auth", Auth_MiddleWare(), Authenticator);
 
 module.exports = router;

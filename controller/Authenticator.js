@@ -1,8 +1,10 @@
 // put near top of file
-const User = require("../models/userModel"); // adjust path if needed
+const User = require("../models/userModel");
 const { getAllowedContacts } = require("../utils/getAllowedContacts");
 
 exports.Authenticator = async (req, res) => {
+  console.log("Authenticator called");
+  
   try {
     const user = req.user;
     if (!user) {
@@ -16,44 +18,74 @@ exports.Authenticator = async (req, res) => {
 
     let updatedUser = user;
 
-    // If a new public key is provided and it's different from stored key -> update
     if (incomingKey && incomingKey !== user.publicKey) {
-      // 1) update current user's publicKey
-      updatedUser = await User.findAndUpdate(
+      updatedUser = await User.findByIdAndUpdate(
         user._id,
         { publicKey: incomingKey },
         { new: true, useFindAndModify: false }
       );
 
-      // Safety: if user not found for some reason, throw
       if (!updatedUser) {
         return res
           .status(404)
           .json({ message: "User not found while updating key" });
       }
 
-      // 2) update peers' allowedContacts entries where contactId equals this user's id
-      // This will set the PublicKey field of the matching array element(s).
       await User.updateMany(
         { "allowedContacts.contactId": user._id },
         { $set: { "allowedContacts.$[elem].PublicKey": incomingKey } },
-        {
-          arrayFilters: [{ "elem.contactId": user._id }],
-          // no upsert, updateMany will affect all documents with the contact
-        }
+        { arrayFilters: [{ "elem.contactId": user._id }] }
       );
     }
 
-    // always fetch the allowed contacts fresh (reflects any updates)
-    const allowedContacts = await getAllowedContacts(user._id);
+    // fetch fresh user with populated contact documents
+    const populatedUserDoc = await User.findById(updatedUser._id)
+      .populate({
+        path: "allowedContacts.contactId",
+        select: "publicKey phone ",
+      })
+      .lean();
 
-    // normalize updatedUser to plain object if it's a mongoose doc
+    // Normalize allowedContacts and inject PublicKey (safely pull from populated contactId)
+    const mergedAllowedContacts = (populatedUserDoc.allowedContacts || []).map(
+      (ac) => {
+        const contactDoc =
+          ac.contactId && typeof ac.contactId === "object"
+            ? ac.contactId
+            : null;
+        return {
+          _id: ac._id,
+          contactId: contactDoc ? contactDoc._id : ac.contactId,
+          type: ac.type,
+          addedAt: ac.addedAt,
+          alias: ac.alias,
+          lastVerifiedAt: ac.lastVerifiedAt,
+          id: ac._id,
+          PublicKey: contactDoc ? contactDoc.publicKey : ac.PublicKey || null,
+          phone: contactDoc ? contactDoc.phone : null,
+        };
+      }
+    );
+
+    // getAllowedContacts if you need additional normalization / ordering (still call to keep existing behavior)
+    const allowedContactsFromUtil = await getAllowedContacts(user._id);
+
+    // prefer mergedAllowedContacts but fall back / merge with util results where applicable
+    const finalAllowedContacts =
+      mergedAllowedContacts.length > 0
+        ? mergedAllowedContacts
+        : allowedContactsFromUtil;
+
     const userObj =
-      updatedUser && updatedUser.toObject
-        ? updatedUser.toObject()
-        : updatedUser;
+      populatedUserDoc && populatedUserDoc.toObject
+        ? populatedUserDoc.toObject()
+        : populatedUserDoc;
 
-    req.user = { ...userObj, allowedContacts };
+    // --- CHANGE IS HERE ---
+    // Remove the original 'allowedContacts' property before sending the response
+    delete userObj.allowedContacts;
+
+    req.user = { ...userObj, Contacts: finalAllowedContacts };
 
     return res
       .status(200)
@@ -63,11 +95,3 @@ exports.Authenticator = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
-/*
-Note:
--the publicKey field in UserSchema is required, so we assume it's always present.
-- we only
-change the public key only if the request contains a different key than the one stored or if the stored key is missing.
-it will do the above one obly if it has { "publicKey": "BASE64_OR_HEX_NEW_KEY_HERE" } in  the request body. 
-*/

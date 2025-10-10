@@ -56,7 +56,7 @@ const UserSchema = new mongoose.Schema({
 
 // 🧩 Virtual populate: Resolve contact’s publicKey from User model
 UserSchema.virtual("allowedContactsInfo", {
-  ref: "User",
+  ref: "Users",
   localField: "allowedContacts.contactId",
   foreignField: "_id",
   justOne: false,
