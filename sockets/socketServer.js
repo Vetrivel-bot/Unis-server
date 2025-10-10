@@ -14,7 +14,7 @@ async function initSocketServer(server, { pubClient, subClient }) {
   const eventsDir = path.join(__dirname, "../socketEvents");
   const eventFiles = fs.readdirSync(eventsDir).filter((f) => f.endsWith(".js"));
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     // The user object is attached by the Auth_MiddleWare
     const user = socket.user;
     if (!user) {
@@ -45,6 +45,33 @@ async function initSocketServer(server, { pubClient, subClient }) {
         console.log(`[socket] Loaded events from ${file}`);
       }
     }
+    
+    messageService.init(io);
+
+    // --- NEW: After handlers are registered, send pending messages ---
+  try {
+    // messageService.fetchPending should return an array of message rows
+    const pending = await messageService.fetchPending(userId);
+
+    if (pending.length > 0) {
+      console.log(`[pending_messages] Sending ${pending.length} messages to ${userId}`);
+    }
+
+    for (const msg of pending) {
+      socket.emit("chat_message", {
+        id: msg.id,
+        from: msg.from_user,
+        to: msg.to_user,
+        ciphertext: msg.ciphertext,
+        nonce: msg.nonce,
+        ts: msg.created_at,
+      });
+    }
+    // Note: Keep status 'sent' until client explicitly emits message_delivered
+  } catch (err) {
+    console.error("[initSocketServer] Error sending pending messages:", err);
+  }
+
 
     socket.on("disconnect", (reason) => {
       console.log(

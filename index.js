@@ -30,6 +30,8 @@ const port = process.env.PORT || 3000;
     // CHANGED: Added connectRedis() to the Promise.all array
     await Promise.all([connectMongo(), connectPostgres(), connectRedis()]);
 
+
+  
     // CHANGED: Pass the connected pubClient and subClient to the socket server
     await initSocketServer(server, { pubClient, subClient });
 
